@@ -250,6 +250,52 @@ Aby mieæ pe³ny wgl¹d na to co dzia³o siê na serwerze, musimy dodaæ logowanie do 
 Do naszego api dodamy biblioteke nlog.
 nuget -> NLog.Web.AspNetCore
 
+Trzeba dodaæ plik nlog.config, który konfiguruje logera.
+
+
+Dodaktowo w klasie Program.cs dodajemy UseNLog:
+
+
+        public static IHostBuilder CreateHostBuilder(string[] args) =>
+            Host.CreateDefaultBuilder(args)
+                .ConfigureWebHostDefaults(webBuilder =>
+                {
+                    webBuilder.UseStartup<Startup>();
+                })
+                .UseNLog();
+
+Nastêpnie dodajemy logger do serwisu i wykonujemy jakiœ log w którejœ akcji.
+
+    public class RestaurantService:IRestaurantService
+    {
+        private readonly RestaurantDbContext context;
+        private readonly IMapper mapper;
+        ***
+        private readonly ILogger<RestaurantService> logger;
+
+        public RestaurantService(RestaurantDbContext context, IMapper mapper, ILogger<RestaurantService> logger)
+        {
+            this.context = context;
+            this.mapper = mapper;
+            ***
+            this.logger = logger;
+        }
+
+        public bool Delete(int id)
+        {
+        ***
+            logger.LogWarning($"Restaurant with id: {id} DELETE action invoked");
+            var restaurant = context
+                .Restaurants
+                .FirstOrDefault(x => x.Id == id);
+
+            if (restaurant is null) return false;
+            context.Restaurants.Remove(restaurant);
+            context.SaveChanges();
+            return true;
+        }
+
+
 
 ########################################################################################################################################################################################################################################################
 
