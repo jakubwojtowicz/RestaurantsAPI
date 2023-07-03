@@ -1,0 +1,262 @@
+########################################################################################################################################################################################################################################################
+Utworzenie migracji i zaktualizowanie bazy danych:
+
+add-migration <Nazwa>
+
+update-database
+
+########################################################################################################################################################################################################################################################
+
+Je¿eli chcemy aby nasze API nie zwraca³o wszystkich danych z bazy, poniewa¿ na przyk³ad s¹ to poufne dane, to tworzymy Modele np RestaurantDto, w którym zawieramy tylko te informacje, które maj¹ trafiæ do klienta API.
+
+########################################################################################################################################################################################################################################################
+
+Dependency Injection:
+
+* Dodanie zale¿noœci Dependency Injection
+* AddSingleton - mamy pewnoœæ, ¿e dana zale¿noœæ zosta³a utworzona tylko raz podczas trwania aplikacji.
+* AddScoped - na jedno zapytanie bêdziemy mieæ jedn¹ instancje danego serwisu            
+* AddTransient - obiekty bêd¹ tworzone za ka¿dym razem, kiedy odwo³ujemy siê do nich przez konstruktor.
+
+services.AddScoped<IWeatherForecastService, WeatherForecastService>();
+
+Dodajemy te zale¿noœci w metodzie ConfigureServices.
+
+########################################################################################################################################################################################################################################################
+
+ATRYBUTY
+
+[Route("api/restaurant")]
+
+To jest atrybut kontrolera, który s³u¿y do tego aby mo¿liwe by³o po³¹czenie zapytania z odpowiedni¹ akcj¹.
+Dziêki temu, ¿e dodaliœmy api/restaruant, mo¿emy dodawaæ te¿ inne kontrolery, a nie tylko restaurant.
+
+ * Dziêki atrybutowi Route mo¿emy dodaæ kolejny Get do naszego kontrolera. Bez tego by³by wyj¹tek, poniewa¿
+ * program musi wiedzieæ do czego ma siê odnieœæ przy zapytaniu. Teraz nowy get bêdzie dostêpny pod œcie¿k¹
+        [HttpGet]
+        [Route("currentDay")] ->  /weatherforecast/currentDay
+
+
+ * Inna metod¹ zmiany œcie¿ki akcji jest dodanie argumentu do atrybutu HttpGet: [HttpGet("currentDay")]
+
+########################################################################################################################################################################################################################################################
+
+MAPOWANIE ARGUMENTOW ZAPYTAN
+
+ * Mapowanie atrybutów, przesy³anie parametrów do akcji.
+ * Dla parametró w nawiasach w metodach musimy sprecyzowaæ, sk¹d dany parametr pochodzi.
+ * Parametr mo¿e pochodziæ z adresu zapytania lub z cia³a zapytania.
+ * FromRoute - przekazanie poprzez œcie¿ke -> [Route("currentDay/{max}")]
+ * FromQuery - przekazanie poprzez zapytanie
+ * FromBody - poprzez cia³o zapytania na przyk³ad: ([FromBody] string name)
+ * Parametry trzeba odpowiednio zmapowaæ, tak aby program wiedzia³ jak po³¹czyæ zapytanie z odpowiedni¹ akcj¹
+ 
+ Sposoby zwracania statusów zapytania
+ Http context to w³asnoœæ kontrolera, dziêki której mamy dostêp do zapytania jak i odpoweidzi Http
+
+
+ Aby metoda zwraca³a kod musi mieæ typ taki typ zwracanej wartoœci:
+
+    public ActionResult<string> Hello2([FromBody] string name)
+    {
+            HttpContext.Response.StatusCode = 401; -> pierwszy sposób 
+            return $"Hello {name}"; 
+            return StatusCode(401, $"Hello {name}"); -> drugi sposób Status Code
+            return NotFound($"Hello {name}"); ->trzeci sposób poprzez zwrocenie metody
+    }
+
+########################################################################################################################################################################################################################################################
+
+MAPOWANIE DO MODELI DTO
+
+Aby mapowaæ obiekty bazodanowe na modele Dto mo¿na u¿yæ AutoMappera. NuGet -> AutoMapper.Extensions.Microsoft.DependencyInjcetion
+Nastêpnie tworzymy klasê do mapowania, która dzidziczy po klasie Profile:
+
+    public class RestaurantMappingProfile: Profile
+    {
+        public RestaurantMappingProfile()
+        {
+            CreateMap<Restaurant, RestaurantDto>()
+                .ForMember(m => m.City, c => c.MapFrom(s => s.Address.City))
+                .ForMember(m => m.Country, c => c.MapFrom(s => s.Address.Country));
+
+            CreateMap<Dish, DishDto>();
+        }
+    }
+
+    **te pola z klas które s¹ identyczne w obu klasach s¹ mapowane automatycznie**
+
+    Po utworzeniu klasy, dodajemy Mappera do kontrolera:
+
+    private readonly IMapper mapper;
+
+    public RestaurantController(RestaurantDbContext dbContext, IMapper mapper)
+    {
+        _context = dbContext;
+        this.mapper = mapper;
+    }
+
+    Mapowanie w metodzie Get:
+
+    [HttpGet]
+    public ActionResult<IEnumerable<RestaurantDto>> GetAll()
+    {
+        var restaurants = _context.Restaurants.ToList();
+
+        var restaurantsDto = mapper.Map<List<RestaurantDto>>(restaurants);
+
+
+        return Ok(restaurantsDto);
+    }
+
+    Na koniec dodajemy service w klasie Startup:
+
+    public void ConfigureServices(IServiceCollection services)
+    {
+        services.AddControllers();
+        services.AddDbContext<RestaurantDbContext>();
+        services.AddScoped<RestaurantSeeder>();
+        services.AddAutoMapper(this.GetType().Assembly);
+    }
+
+    Aby zawrzec tez inne klasy w naszych wynikach musimy uzyc w LINQ Include:
+
+    var restaurant = _context
+                .Restaurants
+                .Include(r => r.Address)
+                .Include(r => r.Dishes)
+                .FirstOrDefault(x => x.Id == id);
+
+
+########################################################################################################################################################################################################################################################
+
+        Dodawanie elementu do bazy za pomoc¹ czasownika POST. Utworzenie encji za pomoc¹ modelu CreateDto.
+
+        [HttpPost]
+        public ActionResult CreateRestaurant([FromBody] CreateRestaurantDto dto)
+        {
+            var restaurant = mapper.Map<Restaurant>(dto);
+            _context.Restaurants.Add(restaurant);
+            _context.SaveChanges();
+
+            return Created($"/api/restaurant/{restaurant.Id}", null);
+        }
+
+        W ten sposób mo¿emy dodaæ metodê do wstawiania nowych danych do bazy.
+        Zosta³a utworzona nowa klasa CreateRestaurantDto, której u¿ytkownik wpisuje obiekt w ciele zapytania.
+        Zosta³o dodane nowe mapowanie w klasie MappingProfile, dziêki któremu odbywa siê mapowanie obiektu przekazanego przez u¿ytkownika, na obiekt który jest dodawany do bazy.
+        Zwracamy tutaj odpowiedz typu Created oraz dajemy link do nowo utworzonej encji.
+
+
+########################################################################################################################################################################################################################################################
+
+    Walidacja
+
+    Aby walidowaæ dane, które wprowadza u¿ytkownik poprzez zapytanie, najlepiej dodawaæ atrybuty w klasie do tworzenia obiektu przez uzytkownika API.
+    [Required] - atrybut, który okreœla, ¿e to pole jest wymagane,
+    [MaxLength()] - atrybut, który okreœla, ¿e to pole ma jak¹œ maksymaln¹ d³ugoœæ
+    Inne atrybuty:
+    [CreditCard] 
+    [Compare("Inne pole klasy")]
+    [EmailAdress]
+    [Phone]
+    [Range(minValue, maxValue)]
+    [RegularExpression(pattern)]
+
+    public class CreateRestaurantDto
+    {
+        [Required]
+        [MaxLength(25)]
+        public string Name { get; set; }
+        public string Description { get; set; }
+        public string Category { get; set; }
+        public bool HasDelivery { get; set; }
+        public bool ContactEmail { get; set; }
+        public bool ContactPhone { get; set; }
+        [Required]
+        [MaxLength(50)]
+        public string City { get; set; }
+        public string Country { get; set; }
+        [Required]
+        [MaxLength(50)]
+        public string Region { get; set; }
+    }
+
+    W ten sposób nastêpnie mo¿emy sprawdziæ czy wprowadzono poprawne dane i ewnetualnie wys³aæ BadRequest
+
+    [HttpPost]
+    public ActionResult CreateRestaurant([FromBody] CreateRestaurantDto dto)
+    {
+        if(ModelState.IsValid)
+        {
+            return BadRequest(ModelState);
+        }
+
+        var restaurant = mapper.Map<Restaurant>(dto);
+        _context.Restaurants.Add(restaurant);
+        _context.SaveChanges();
+
+        return Created($"/api/restaurant/{restaurant.Id}", null);
+    }
+
+########################################################################################################################################################################################################################################################
+
+    Refaktor kontrolera
+
+    Kontroler nie powininien zawieraæ du¿o logiki. Powinien on zawieraæ odebranie zapytania, ewentualn¹ walidacjê i przes³anie zapytania do jakiegoœ serwisu, który obs³uguje dane zapytanie. 
+    Serwis wstrzykujemy poprzez Dependency Injection.
+
+########################################################################################################################################################################################################################################################
+    
+    Usuwanie elementów
+
+    Usuwanie elementów realizuje czasownik Delete
+
+    //RestaurantController
+    [HttpDelete("{id}")]
+    public ActionResult Delete([FromRoute] int id)
+    {
+        var isDeleted = restaurantService.Delete(id);
+
+        if(isDeleted)
+        {
+            return NoContent();
+        }
+        else
+        {
+            return NotFound();
+        }
+    }
+
+    //RestaurantService
+    public bool Delete(int id)
+    {
+        var restaurant = context
+            .Restaurants
+            .FirstOrDefault(x => x.Id == id);
+
+        if (restaurant is null) return false;
+        context.Restaurants .Remove(restaurant);
+        context.SaveChanges();
+        return true;
+    }
+
+
+########################################################################################################################################################################################################################################################
+
+Loger
+
+Aby mieæ pe³ny wgl¹d na to co dzia³o siê na serwerze, musimy dodaæ logowanie do aplikacji. Chodzi o zapis informacji w formie tekstowej np. do pliku tekstowego. 
+Do naszego api dodamy biblioteke nlog.
+nuget -> NLog.Web.AspNetCore
+
+
+########################################################################################################################################################################################################################################################
+
+########################################################################################################################################################################################################################################################
+
+########################################################################################################################################################################################################################################################
+
+########################################################################################################################################################################################################################################################
+
+########################################################################################################################################################################################################################################################
