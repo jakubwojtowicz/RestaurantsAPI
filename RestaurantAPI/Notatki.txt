@@ -5,9 +5,7 @@ add-migration <Nazwa>
 
 update-database
 
-########################################################################################################################################################################################################################################################
 
-Je¿eli chcemy aby nasze API nie zwraca³o wszystkich danych z bazy, poniewa¿ na przyk³ad s¹ to poufne dane, to tworzymy Modele np RestaurantDto, w którym zawieramy tylko te informacje, które maj¹ trafiæ do klienta API.
 
 ########################################################################################################################################################################################################################################################
 
@@ -68,6 +66,9 @@ MAPOWANIE ARGUMENTOW ZAPYTAN
 ########################################################################################################################################################################################################################################################
 
 MAPOWANIE DO MODELI DTO
+
+Je¿eli chcemy aby nasze API nie zwraca³o wszystkich danych z bazy, poniewa¿ na przyk³ad s¹ to poufne dane, to tworzymy Modele np RestaurantDto, w którym zawieramy tylko te informacje, które maj¹ trafiæ do klienta API.
+
 
 Aby mapowaæ obiekty bazodanowe na modele Dto mo¿na u¿yæ AutoMappera. NuGet -> AutoMapper.Extensions.Microsoft.DependencyInjcetion
 Nastêpnie tworzymy klasê do mapowania, która dzidziczy po klasie Profile:
@@ -130,22 +131,22 @@ Nastêpnie tworzymy klasê do mapowania, która dzidziczy po klasie Profile:
 
 ########################################################################################################################################################################################################################################################
 
-        Dodawanie elementu do bazy za pomoc¹ czasownika POST. Utworzenie encji za pomoc¹ modelu CreateDto.
+    Dodawanie elementu do bazy za pomoc¹ czasownika POST. Utworzenie encji za pomoc¹ modelu CreateDto.
 
-        [HttpPost]
-        public ActionResult CreateRestaurant([FromBody] CreateRestaurantDto dto)
-        {
-            var restaurant = mapper.Map<Restaurant>(dto);
-            _context.Restaurants.Add(restaurant);
-            _context.SaveChanges();
+    [HttpPost]
+    public ActionResult CreateRestaurant([FromBody] CreateRestaurantDto dto)
+    {
+        var restaurant = mapper.Map<Restaurant>(dto);
+        _context.Restaurants.Add(restaurant);
+        _context.SaveChanges();
 
-            return Created($"/api/restaurant/{restaurant.Id}", null);
-        }
+        return Created($"/api/restaurant/{restaurant.Id}", null);
+    }
 
-        W ten sposób mo¿emy dodaæ metodê do wstawiania nowych danych do bazy.
-        Zosta³a utworzona nowa klasa CreateRestaurantDto, której u¿ytkownik wpisuje obiekt w ciele zapytania.
-        Zosta³o dodane nowe mapowanie w klasie MappingProfile, dziêki któremu odbywa siê mapowanie obiektu przekazanego przez u¿ytkownika, na obiekt który jest dodawany do bazy.
-        Zwracamy tutaj odpowiedz typu Created oraz dajemy link do nowo utworzonej encji.
+    W ten sposób mo¿emy dodaæ metodê do wstawiania nowych danych do bazy.
+    Zosta³a utworzona nowa klasa CreateRestaurantDto, której u¿ytkownik wpisuje obiekt w ciele zapytania.
+    Zosta³o dodane nowe mapowanie w klasie MappingProfile, dziêki któremu odbywa siê mapowanie obiektu przekazanego przez u¿ytkownika, na obiekt który jest dodawany do bazy.
+    Zwracamy tutaj odpowiedz typu Created oraz dajemy link do nowo utworzonej encji.
 
 
 ########################################################################################################################################################################################################################################################
@@ -298,6 +299,78 @@ Nastêpnie dodajemy logger do serwisu i wykonujemy jakiœ log w którejœ akcji.
 
 
 ########################################################################################################################################################################################################################################################
+
+Error handling middleware
+
+Aby z³apaæ b³¹d w aplikacji i w pe³ni wykorzystaæ logger dla wyj¹tków musimy ³apaæ wyj¹tki i w ramach ich obs³ugi zapisywaæ informacje poprzez logger. 
+Zamiast dodawaæ try catch do wszystkich mo¿liwych miejsc, gdzie mo¿e wyst¹piæ wyj¹tek, mo¿emy stworzyæ w³asny middleware i dodaæ go do klasy stratup. 
+Dziêki temu ka¿de zapytanie bêdzie procesowany przez ten middleware.
+
+Tworzymy klasê Middleware, która implementuje interfejst IMiddleware.
+
+    public class ErrorHandlingMiddleware : IMiddleware
+    {
+        public ILogger<ErrorHandlingMiddleware> logger;
+        public ErrorHandlingMiddleware(ILogger<ErrorHandlingMiddleware> logger)
+        {
+            this.logger = logger;
+        }
+
+        public async Task InvokeAsync(HttpContext context, RequestDelegate next)
+        {
+            try
+            {
+                await next.Invoke(context);
+            }
+            catch(Exception e)
+            {
+                logger.LogError(e, e.Message);
+
+                context.Response.StatusCode = 500;
+                await context.Response.WriteAsync("Something went wrong...");
+            }
+        }
+    }
+
+    Klasa ta ma blok try catch, który próbuje wywo³aæ nastêpny middleware asynchronicznie. W obs³udze b³êdu logujemy b³¹d i wysy³amy odpowiedŸ do klienta z ustawieniem statusu na 500.
+
+    public void ConfigureServices(IServiceCollection services)
+    {
+        services.AddControllers();
+        services.AddDbContext<RestaurantDbContext>();
+        services.AddScoped<RestaurantSeeder>();
+        services.AddScoped<IRestaurantService, RestaurantService>();
+        services.AddAutoMapper(this.GetType().Assembly);
+        services.AddScoped<ErrorHandlingMiddleware>();
+    }
+
+    W metodzie ConfigureServices w klasie Startup dodajemy nasz middleware.
+
+    public void Configure(IApplicationBuilder app, IWebHostEnvironment env, RestaurantSeeder seeder)
+    {
+
+        seeder.Seed();
+
+        if (env.IsDevelopment())
+        {
+            app.UseDeveloperExceptionPage();
+        }
+
+        app.UseMiddleware<ErrorHandlingMiddleware>();
+
+        app.UseHttpsRedirection();
+
+        app.UseRouting();
+
+        app.UseAuthorization();
+
+        app.UseEndpoints(endpoints =>
+        {
+            endpoints.MapControllers();
+        });
+    }
+
+    W metodzie Configure dodajemy nasz middleware na pocz¹tku przep³ywu zapytania.
 
 ########################################################################################################################################################################################################################################################
 
