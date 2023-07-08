@@ -374,8 +374,109 @@ Tworzymy klasê Middleware, która implementuje interfejst IMiddleware.
 
 ########################################################################################################################################################################################################################################################
 
-########################################################################################################################################################################################################################################################
+Customowe b³êdy API
+
+W tym momencie ³apanie b³êdów API, np gdy dany zasób nie istnieje, by³o realizowane poprzez controller.
+Controller wywo³uje metode z serwisu, która zwraca informacje o b³êdzie, a nastêpnie controller zwraca informacje do u¿ytkownika API.
+Ta implementacja wprowadza zale¿noœæ pomiêdzy tymi dwoma klasami kontrolera i serwisu.
+Aby pozbyæ siê tego powi¹zania, w serwisie mo¿na wyrzucaæ wyjatki oraz je przechwytywaæ w naszej klasie ErrorHandlingMiddleware.
+
+**Nasze customowe wyj¹tki mo¿emy dodawaæ w folderze Exceptions. Wyjatek musi dziedziczyæ po klasie Exception oraz wywo³ywaæ konstruktor bazowy.
+
+public class NotFoundException:Exception
+{
+    //base(message) - wywo³anie konstruktora bazowego
+    public NotFoundException(string message) : base (message)
+    {
+            
+    }
+}
+
+**Nastêpnie w klasie service wyrzucamy wyj¹tek:
+
+public void Update(int id, UpdateRestaurantDto dto)
+{
+    var restaurant = context
+        .Restaurants
+        .FirstOrDefault(x => x.Id == id);
+    if (restaurant is null) 
+        throw new KeyNotFoundException("Restaurant not found");
+
+    restaurant.Name = dto.Name;
+    restaurant.Description = dto.Description;
+    restaurant.HasDelivery = dto.HasDelivery;
+    context.SaveChanges();
+}
+
+**Teraz nasza metoda w kontrolerze mo¿e byæ krótsza np:
+
+[HttpPut("{id}")]
+public ActionResult Update([FromRoute] int id, [FromBody] UpdateRestaurantDto dto)
+{
+    if (!ModelState.IsValid)
+    {
+        return BadRequest(ModelState);
+    }
+
+    restaurantService.Update(id, dto);
+
+    return Ok();
+}
+
+**Na koniec obs³ugujemy wyj¹tek w ErrorHandlingMiddleware
+
+public async Task InvokeAsync(HttpContext context, RequestDelegate next)
+{
+    try
+    {
+        await next.Invoke(context);
+    }
+    catch(NotFoundException notFoundException)
+    {
+        context.Response.StatusCode = 404;
+        await context.Response.WriteAsync(notFoundException.Message);
+    }
+    catch(Exception e)
+    {
+        logger.LogError(e, e.Message);
+
+        context.Response.StatusCode = 500;
+        await context.Response.WriteAsync("Something went wrong...");
+    }
+}
+
+**Dodatkowo w naszym kontrolerze powtarza siê walidacja modelu w wielu metodach. Aby pozbyæ siê tych powtórzeñ dodajemy atrybut [ApiController]
+
+namespace RestaurantAPI.Controllers
+{
+    [Route("api/restaurant")]
+    [ApiController]
+    public class RestaurantController : ControllerBase
+    {
+        private readonly IRestaurantService restaurantService;
+
+        public RestaurantController(IRestaurantService restaurantService)
+        {
+            this.restaurantService = restaurantService;
+        }
+
+        ...
+
+Dziêki temu kawa³ek kodu :
+
+if (!ModelState.IsValid)
+{
+    return BadRequest(ModelState);
+}
+
+jest wywo³ywany automatycznie.
+
+
 
 ########################################################################################################################################################################################################################################################
 
+
+
 ########################################################################################################################################################################################################################################################
+
+###############################################dda#########################################################################################################################################################################################################
