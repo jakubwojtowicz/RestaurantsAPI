@@ -36,6 +36,7 @@ namespace RestaurantAPI
             services.AddScoped<IRestaurantService, RestaurantService>();
             services.AddAutoMapper(this.GetType().Assembly);
             services.AddScoped<ErrorHandlingMiddleware>();
+            services.AddScoped<RequestTimingMiddleware>();
             services.AddSwaggerGen();
         }
 
@@ -50,6 +51,8 @@ namespace RestaurantAPI
             }
 
             app.UseMiddleware<ErrorHandlingMiddleware>();
+
+            app.UseMiddleware<RequestTimingMiddleware>();
 
             app.UseHttpsRedirection();
 
