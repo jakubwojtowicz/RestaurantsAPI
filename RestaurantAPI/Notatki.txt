@@ -475,6 +475,35 @@ jest wywo³ywany automatycznie.
 
 ########################################################################################################################################################################################################################################################
 
+Dokumentacja API - Swagger
+
+Do naszego API przyda³aby siê dokumentacja dostêpnych akcji. Do tego mo¿e pos³u¿yæ Swagger. 
+Je¿eli ktoœ inny ni¿ my mia³by stworzyæ frontend do naszego API, to musielibyœmy mu dostarczyæ informacje, jakie s¹ metody w naszym API oraz jak je wywo³aæ.
+Swagger tworzy automatyczn¹ dokumentacje API na podstawie akcji w kontrolerach API.
+Nuget -> Swashbuckle.AspNetCore
+
+W klasie Startup w metodzie Configure Servies dodajemy:
+
+services.AddSwaggerGen();
+
+W metodzie configure:
+
+...
+
+app.UseHttpsRedirection();
+
+app.UseSwagger();
+app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "Restaurant API"));
+
+...
+
+Dziêki UseSwagger() zostanie wygenerowany plik json z dokumentacja
+Dziêki UseSwaggerUI() zostanie wygenerowany interfejs u¿ytkownika, która bêdzie zawiera³ dokumentacje z wczeœniej stworzonego pliku json.
+
+Aby dostaæ siê do interfejsu w przegl¹darce wpisujemy adres hosta ze œcie¿k¹ swagger np: https://localhost:44328/swagger.
+
+Dziêki Swaggerowi ka¿dy kto chcia³by korzystaæ z naszego API mo¿e siê dowiedzieæ poprzez wygenrowany interfejs.
+
 
 
 ########################################################################################################################################################################################################################################################

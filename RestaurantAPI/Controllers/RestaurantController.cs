@@ -40,7 +40,6 @@ namespace RestaurantAPI.Controllers
         [HttpPost]
         public ActionResult CreateRestaurant([FromBody] CreateRestaurantDto dto)
         {
-
             int id = restaurantService.Create(dto);
 
             return Created($"/api/restaurant/{id}", null);
