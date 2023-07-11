@@ -22,7 +22,34 @@ namespace RestaurantAPI
                     _context.Restaurants.AddRange(restaurants);
                     _context.SaveChanges();
                 }
+                if (!_context.Roles.Any())
+                {
+                    var roles = GetRoles();
+                    _context.Roles.AddRange(roles);
+                    _context.SaveChanges();
+                }
             }
+        }
+
+        private IEnumerable<Role> GetRoles()
+        {
+            var roles = new List<Role>()
+            {
+                new Role
+                {
+                    Name = "User"
+                },
+                new Role
+                {
+                    Name = "Menager"
+                },
+                new Role
+                {
+                    Name = "Administrator"
+                }
+            };
+
+            return roles;
         }
 
         private IEnumerable<Restaurant> GetRestaurants()

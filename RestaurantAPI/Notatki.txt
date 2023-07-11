@@ -515,6 +515,56 @@ Aby to zrobiæ odpowiednio ustawiamy œcie¿kê api/restaurant/{restaurantId}/dish.
 
 ########################################################################################################################################################################################################################################################
 
+AUTENTYKACJA
+
+W tym momencie ka¿dy u¿ytkownik API mo¿e wykywaæ ka¿d¹ akcjê w bazie danych. Mog¹ oni usuwaæ zasoby nawet jeœli ich nie stworzyli.
+Nie da³oby siê sprawdziæ jaki u¿ytkownik wys³a³ jakie zapytanie. 
+Autentykacja to proces polegaj¹cy na potwierdzeniu to¿samoœci podmiotu bior¹cego udzia³ w komunikacji.
+Ma za zadanie okreœliæ, czy u¿ytkownik jest tym, za kogo siê podaje. 
+
+W przypadku autentykacjji elektronicznej stosuje siê:
+**metody oparte no tokenach, 
+**klucze prywatne
+**has³a
+
+Kategorie procesów autentykacji:
+1. Coœ co masz (Token, telefon z oprogramowaniem, karta)
+2. Coœ czym jesteœ (g³os, twarz, odcisk palca)
+3. Coœ co wiesz (PIN, Has³o, pytanie pomocniczne)
+
+W aplikacjach wra¿liwych czêsto stosuje siê autentykacje dwusk³adnikow¹. 
+
+W tej aplikacji zostan¹ u¿yte has³a. 
+
+Role:
+*User - zwyk³y u¿ytkownik, który mo¿e tylko przegl¹daæ informacje o restauracjach 
+*Menager - mo¿e zarz¹dzaæ swoimi restauracjami 
+*Administrator - osoba, która mo¿e nadawaæ uprawnienia innym u¿ytkownikom
+
+Aby dodaæ odpowiednie role i informacje musimy dodaæ odpowiednie tabele do bazy danych.
+
+    public class User
+    {
+        public int Id { get; set; }
+        public string Email { get; set; }
+        public string FirstName { get; set; }
+        public string LastName { get; set; }
+        public DateTime? DateOfBirth { get; set; }
+        public string Nationality { get; set; }
+        public string PasswordHash { get; set; }
+        public int RoleId { get; set; }
+        public virtual Role Role { get; set; }
+
+    }
+
+    public class Role
+    {
+        public int Id { get; set; }
+        public string Name { get; set; }
+    }
+
+Role powinny mieæ zawsze ustalone wartoœci w bazie danych dlatego trzeba je zaseedowaæ.
+
 ########################################################################################################################################################################################################################################################
 
 ########################################################################################################################################################################################################################################################
