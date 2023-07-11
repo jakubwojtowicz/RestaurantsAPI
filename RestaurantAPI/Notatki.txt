@@ -567,6 +567,59 @@ Role powinny mieæ zawsze ustalone wartoœci w bazie danych dlatego trzeba je zase
 
 ########################################################################################################################################################################################################################################################
 
+Hashowanie hase³.
+
+Musimy byæ pewni, ¿e w przypadku w³amania do bazy danych, has³a u¿ytkowników nigdy nie zostan¹ ujawnione.
+W ¿adnym wypadku nie chcemy przechowywaæ hase³ u¿ytkowników w postaci tekstu.
+Wielu u¿ytkowników korzysta z tych samych hase³ na ró¿nych stronach. 
+Przez to jest ryzyko, ¿e ich inne konta mog¹ byæ zaatakowane po ujawnienia hase³ w naszym API.
+
+Hashowanie to powszechne podejscie do bezpiecznego zabezpieczenia hasla.
+Hashowanie jest jednokierunkowe, czyli z wartosci po wykonaniu funkcji hashuj¹cej, nie uzyskamy ju¿ wartoœci pocz¹tkowej.
+
+Gdy u¿ytkownik zarejestruje konto, jego has³o jest przechowywane jako hash w bazie danych.
+Nastêpnie przy próbie zalogowania, wpisane has³o bêdzie ponownie zahashowane i porównane z tym, które jest ju¿ w bazie danych.
+Jest wiele dostepnych paczek do wykonywania hashowania hase³.
+W ASPNetCore.Identity istnieje klasa PasswordHasher, która s³u¿y do tego celu.
+Klasa PasswordHasher zawiera dwie metody:
+1.HasPassword do wykonania funkcji Hashuj¹cej dla danego u¿ytkownika.
+2.VerifyHashedPassword, która dla u¿ytkownika, has³a z bazy i has³a wpisanego sprawdza, czy podano prawid³owe has³o.
+
+Aby korzystaæ z klasy PasswordHasher trzeba j¹ zarejestrowaæ w kontrolerze zale¿noœci w klasie startup.
+
+ services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
+
+ U¿ycie hashera:
+
+     public class AccountService: IAccountService
+    {
+        private readonly RestaurantDbContext context;
+        private readonly IPasswordHasher<User> hasher;
+
+        public AccountService(RestaurantDbContext context, IPasswordHasher<User> hasher)
+        {
+            this.context = context;
+            this.hasher = hasher;
+        }
+        public void RegisterUser(RegisterUserDto dto)
+        {
+            var newUser = new User()
+            {
+                Email = dto.Email,
+                DateOfBirth = dto.DateOfBirth,
+                Nationality = dto.Nationality,
+                RoleId = dto.RoleId
+            };
+            var hashedPassword = hasher.HashPassword(newUser, dto.Password);
+
+            newUser.PasswordHash = hashedPassword;
+
+            context.Users.Add(newUser); 
+            context.SaveChanges();
+        }
+    }
+
+
 ########################################################################################################################################################################################################################################################
 
 ########################################################################################################################################################################################################################################################
