@@ -622,6 +622,47 @@ Aby korzystaæ z klasy PasswordHasher trzeba j¹ zarejestrowaæ w kontrolerze zale¿
 
 ########################################################################################################################################################################################################################################################
 
+Walidacja
+
+W tym momencie za pomoc¹ poprzedniej metody, czyli dodawania atrybutów na pola w modelu mo¿liwa by³¹ realizacja walidacji.
+Niestety, je¿eli chcemy dodaæ walidacjê, która sprawdza³aby, czy istnieje ju¿ w bazie taki login uzytkownika, nie mozemy w ten sposob tego zrobic.
+Do realizacji walidacji mozna korzystac z paczki FluentValidation, która pozwala na nakladanie zasad walidacji na konkretny model w bardzo elastyczny sposob.
+
+Tak wygl¹da dodana klasa, która okreœla zasady walidacji dla modelu RegisterUserDto za pomoc¹ FluentValidation:
+
+namespace RestaurantAPI.Models.Validators
+{
+    public class RegisterUserDtoValidator: AbstractValidator<RegisterUserDto>
+    {
+        public RegisterUserDtoValidator(RestaurantDbContext dbContext)
+        {
+            RuleFor(x => x.Email)
+                .NotEmpty()
+                .EmailAddress();
+
+            RuleFor(x => x.Password)
+                .MinimumLength(6);
+
+            RuleFor(x => x.ConfirmPassword).Equal(e => e.Password);
+
+            RuleFor(x => x.Email)
+                .Custom((value, context) =>
+                {
+                    var emailInUse = dbContext.Users.Any(u => u.Email == value);
+                    if(emailInUse)
+                    {
+                        context.AddFailure("Email", "That email is taken");
+                    }
+                });
+        }
+    }
+}
+
+W metodzie configureservices w klasie startup trzeba ta klasie zarejestrowaæ w kontenerze zale¿noœci. 
+
+services.AddControllers().AddFluentValidation();
+services.AddScoped<IValidator<RegisterUserDto>, RegisterUserDtoValidator>();
+
 ########################################################################################################################################################################################################################################################
 
 ########################################################################################################################################################################################################################################################

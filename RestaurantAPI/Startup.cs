@@ -1,4 +1,6 @@
 using AutoMapper;
+using FluentValidation;
+using FluentValidation.AspNetCore;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.HttpsPolicy;
@@ -10,6 +12,8 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using RestaurantAPI.Entities;
 using RestaurantAPI.Middleware;
+using RestaurantAPI.Models;
+using RestaurantAPI.Models.Validators;
 using RestaurantAPI.Services;
 using System;
 using System.Collections.Generic;
@@ -31,6 +35,7 @@ namespace RestaurantAPI
 
         public void ConfigureServices(IServiceCollection services)
         {
+            services.AddControllers().AddFluentValidation();
             services.AddControllers();
             services.AddDbContext<RestaurantDbContext>();
             services.AddScoped<RestaurantSeeder>();
@@ -40,6 +45,7 @@ namespace RestaurantAPI
             services.AddAutoMapper(this.GetType().Assembly);
             services.AddScoped<ErrorHandlingMiddleware>();
             services.AddScoped<RequestTimingMiddleware>();
+            services.AddScoped<IValidator<RegisterUserDto>, RegisterUserDtoValidator>();
             services.AddSwaggerGen();
             services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
         }
