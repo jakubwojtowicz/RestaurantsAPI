@@ -665,7 +665,136 @@ services.AddScoped<IValidator<RegisterUserDto>, RegisterUserDtoValidator>();
 
 ########################################################################################################################################################################################################################################################
 
+Autentykacja za pomoc¹ Json Web Token (JWT)
+
+JWT to standard internetowy do tworzenia tokenow dostepow opartych na formacie json.
+Token zawiera informacje o pewnych stwierdzeniach o jego posiadaczu nazwanych claimami.
+Takie stwierdzenie to na przyklad informacja, ¿e uzytkownik jest w roli admina.
+Tokeny s¹ generowane po stronie serwera przy uzyciu klucza prywatnego lub przy uzyciu kombinacji klucza prywantego i publicznego.
+Klient mo¿e u¿yc tokena aby udowodniæ, ¿e jest zalogowany jako administrator.
+Serwer generuj¹c taki token podpisuje go kluczem prywatnym, przez co póŸniej mo¿e zweryfikowaæ czy dany token wyslany od klienta jest zgodny z kluczem, który posiada serwer.
+Serwer robi to po to aby wykluczyæ próbe autentykacji nieprawid³owym tokenem.
+
+Typowa autentykacja przy logowaniu wygl¹da nastêpuj¹co:
+
+Uzytkownik wysy³a zapytanie z akcj¹ typu POST, gdzie podaje swój email i has³o. 
+Aplikacja, czy te¿ serwer, sprawdza poprawnoœæ has³a za pomoc¹ hashu oraz czy taki u¿ytkownik istnieje w bazie.
+Jeœli dane s¹ poprawne, serwer generuje Token zawieraj¹cy claimy i wysy³a go u¿ytkownikowi. 
+Klient po otrzymaniu tokena JWT jest w stanie autentykowaæ siê przy wysy³aniu nastêpnych zapytañ poprzez umieszczenie tokena JWT w nag³ówku autoryzacji.
+Serwer sprawdza, czy dany token nie wygas³ oraz czy klucz prywatny zgadza siê z wartoœci¹ tokena.
+
+Ka¿dy token JWT jest podzielony na 3 czeœæi.
+1. Nag³ówek - zawiera informacje jaki algorytm zosta³ u¿yty do wygenerowania podpisu
+2. Payload - zbiór claimów, które zawieraj¹ informacje o posiadaczu tokena
+3. Podpis - s³u¿y do sprawdzenia poprawnoœci tokena
+
+Jak dodaæ Jwt do aplikacji. W pliku appsettings.json dodajemy:
+
+  "Authentication": {
+    "JwtKey": "PRIVATE_KEY_DONT_SHARE",
+    "JwtExpireDays": 15,
+    "JwtIssuer": "http://restaurantapi.com"
+  },
+
+Nastêpnie tworzymy klasê, która bêdzie reprezentowaæ te ustawienia:
+
+    public class AuthenticationSettings
+    {
+        public string JwtKet { get; set; }
+        public int JwtExpireDays { get; set; }
+        public string JwtIssuer { get; set; }
+    }
+
+
+W klasie startup musimy skonfigurowaæ te ustawienia.
+
+W metodzie Configure:
+
+    app.UseAuthentication();
+
+W metodzie ConfigureServices:
+
+    var authenticationSettings = new AuthenticationSettings();
+
+    Configuration.GetSection("Authentication").Bind(authenticationSettings); // wten sposob mozna dostac sie do ustawien z pliku appsettings.json
+
+    services.AddAuthentication(option =>
+    {
+        option.DefaultAuthenticateScheme = "Bearer";
+        option.DefaultScheme = "Bearer";
+        option.DefaultChallengeScheme = "Bearer";
+    }).AddJwtBearer(cfg =>
+    {
+        cfg.RequireHttpsMetadata = false;
+        cfg.SaveToken = true;
+        cfg.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidIssuer = authenticationSettings.JwtIssuer,
+            ValidAudience = authenticationSettings.JwtIssuer,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(authenticationSettings.JwtKey)),
+        };
+    });
+
+Metoda w AccountService do wygenerowania tokenu: 
+
+public string GenerateJwt(LoginDto dto)
+{
+    var user = context.Users
+        .Include(u=>u.Role)
+        .FirstOrDefault(u => u.Email == dto.Email);
+    if(user == null)
+    {
+        throw new BadRequestException("Invalid username or password");
+    }
+    var result = hasher.VerifyHashedPassword(user, user.PasswordHash, dto.Password);
+    if(result == PasswordVerificationResult.Failed)
+    {
+        throw new BadRequestException("Invalid username or password");
+    }
+
+    var claimes = new List<Claim>()
+    {
+        new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
+        new Claim(ClaimTypes.Name, $"{user.FirstName} {user.LastName}"),
+        new Claim(ClaimTypes.Role, user.Role.Name),
+        new Claim("DateOfBirth", user.DateOfBirth.Value.ToString("yyyy-MM-dd")),
+        new Claim("Nationality", user.Nationality)
+    };
+
+    var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(authenticationSettings.JwtKey));
+    var cred = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+    var expires = DateTime.Now.AddDays(authenticationSettings.JwtExpireDays);
+
+    var token = new JwtSecurityToken(authenticationSettings.JwtIssuer,
+        authenticationSettings.JwtIssuer,
+        claimes,
+        expires: expires,
+        signingCredentials: cred);
+
+    var tokenHandler = new JwtSecurityTokenHandler();
+    return tokenHandler.WriteToken(token);
+
+}
+
+I w klasie kontrolera:
+
+[HttpPost("login")]
+public ActionResult Login([FromBody] LoginDto dto)
+{
+    string token = service.GenerateJwt(dto);
+    return Ok(token);   
+}
+
+Je¿eli u¿ytkownik wprowadzi swój token w nag³ówku zapytania, to w kontrolerze mo¿emy uzyskiwaæ informacje o u¿ytkowniku z claimów wiêc w ten sposób wiemy, kto wysy³a zapytanie na serwer.
+Dziêki temu, ¿e mo¿emy zidentyfikowaæ u¿ytkownika, mo¿emy równie¿ zautoryzowaæ u¿ytkownika do wykonania jakiejœ akcji na serwerze. 
+
+
 ########################################################################################################################################################################################################################################################
+
+AUTORYZACJA
+
+Autoryzacja jest to sprawdzenie, czy dany u¿ytkownik ma dostêp do wykonania jakiejœ akcji czy nie.
+
 
 ########################################################################################################################################################################################################################################################
 

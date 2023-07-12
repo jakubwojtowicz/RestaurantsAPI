@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion.Internal;
 using RestaurantAPI.Models;
 using RestaurantAPI.Services;
 
@@ -19,6 +20,13 @@ namespace RestaurantAPI.Controllers
         {
             service.RegisterUser(dto);
             return Ok();
+        }
+
+        [HttpPost("login")]
+        public ActionResult Login([FromBody] LoginDto dto)
+        {
+            string token = service.GenerateJwt(dto);
+            return Ok(token);   
         }
     }
 }
