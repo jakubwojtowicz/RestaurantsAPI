@@ -795,6 +795,34 @@ AUTORYZACJA
 
 Autoryzacja jest to sprawdzenie, czy dany u¿ytkownik ma dostêp do wykonania jakiejœ akcji czy nie.
 
+W ASP.NET Core wyró¿niamy trzy podstawowe typy autoryzacji:
+-Prosta autoryzacja na podstawie roli uzytkownika
+-Autoryzacja na podstawie informacji w claimie zawartym w tokenie Jwt
+-Customowa polityka zdefiniowana w dowolny przez nas sposób
+
+Aby dodaæ autoryzacje trzeba w klasie startup w metodzie configure dodaæ wywolanie metody app.UseAutorization.
+Metode t¹ trzeba wywo³awaæ pomiêdzy app.UseRouting oraz app.UseEndpoints
+Czyli najpierw musimy zmapowaæ akcje w kontrolerze, pozniej zautoryzowac uzytkownika i jezeli autoryzacja przebiegnie poprawnie, to wykonaæ dan¹ akcjê.
+Oprócz tego musimy dodaæ autoryzacjê na poziomie konkretnej akcji lub kontrolera.
+
+
+[HttpGet]
+[Authorize]
+public ActionResult<IEnumerable<RestaurantDto>> GetAll()
+{
+    var restaurantsDto = restaurantService.GetAll();
+
+    return Ok(restaurantsDto);
+}
+Je¿eli chcemy aby pobranie listy wszystkich restauracji bylo mozliwe tylko dla zalogowanych uzytkownikow.
+Dziêki dodaniu atrybutu [Authorize] aplikacja sprawdzi automatycznie, czy naglowek zapytania zawiera odpowiedni token. 
+
+Teraz przy zapytaniu uzytkownik musi podac token w naglowku zapytania.
+
+Ten sam atrybut mo¿emy na³o¿yæ na poziomie ca³ego kontrolera.
+
+Je¿eli majac atrybut na poziomie calego kontrolera chcemy aby jakas akcja nie miala autoryzacji, to mozemy dodac do niej atrybut [AllowAnonymous]
+
 
 ########################################################################################################################################################################################################################################################
 
