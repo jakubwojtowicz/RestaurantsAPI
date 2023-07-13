@@ -60,7 +60,10 @@ namespace RestaurantAPI
                 };
             });
 
-
+            services.AddAuthorization(options =>
+            {
+                options.AddPolicy("HasNationality", builder => builder.RequireClaim("Nationality", "Poland", "German"));
+            });
 
             services.AddControllers().AddFluentValidation();
             services.AddControllers();

@@ -30,7 +30,7 @@ To jest atrybut kontrolera, który s³u¿y do tego aby mo¿liwe by³o po³¹czenie zapy
 Dziêki temu, ¿e dodaliœmy api/restaruant, mo¿emy dodawaæ te¿ inne kontrolery, a nie tylko restaurant.
 
  * Dziêki atrybutowi Route mo¿emy dodaæ kolejny Get do naszego kontrolera. Bez tego by³by wyj¹tek, poniewa¿
- * program musi wiedzieæ do czego ma siê odnieœæ przy zapytaniu. Teraz nowy get bêdzie dostêpny pod œcie¿k¹
+ * program musi wiedzieæ do czego ma siê odnieœæ przy zapytaniu. 
         [HttpGet]
         [Route("currentDay")] ->  /weatherforecast/currentDay
 
@@ -850,9 +850,38 @@ var claimes = new List<Claim>()
     new Claim("Nationality", user.Nationality)
 };
 
-
-
 ########################################################################################################################################################################################################################################################
+
+AUTORYZACJA WARTOSCIA CLAIMU
+
+services.AddAuthorization(options =>
+{
+    options.AddPolicy("HasNationality", builder => builder.RequireClaim("Nationality"))
+});
+
+W ten sposób w klasie startup mo¿emy dodaæ w³asn¹ polityke, która sprawdza, czy Claim Nationality istnieje w tokenie. 
+Aby u¿yc tej polityki w RestaurantController:
+
+[HttpGet]
+[Authorize(Policy = "HasNationality")]
+public ActionResult<IEnumerable<RestaurantDto>> GetAll()
+{
+    var restaurantsDto = restaurantService.GetAll();
+
+    return Ok(restaurantsDto);
+}
+
+Teraz akcja Get bêdzie wymaga³a, aby uzytkownik mial narodowosc w tokenie. 
+
+Aby dodaæ do naszej polityki, ¿e dany claim musi zawieraæ konkretn¹ wartoœæ, mo¿na to zrobiæ w ten sposób:
+
+services.AddAuthorization(options =>
+{
+    options.AddPolicy("HasNationality", builder => builder.RequireClaim("Nationality", "Poland", "German"));
+});
+
+
+
 
 ########################################################################################################################################################################################################################################################
 
