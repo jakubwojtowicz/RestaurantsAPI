@@ -880,10 +880,86 @@ services.AddAuthorization(options =>
     options.AddPolicy("HasNationality", builder => builder.RequireClaim("Nationality", "Poland", "German"));
 });
 
-
-
-
 ########################################################################################################################################################################################################################################################
+
+CUSTOMOWA POLITYKA AUTORYZACJI
+
+Za³o¿my, ¿e chcielibyœmy dopuœciæ do wykonania jakiejœ akcji u¿ytkowników maj¹cych wiêcej ni¿ 20 lat.
+Aby tego dokonaæ, nie mo¿na wykorzystaæ poprzednich metod autoryzacji.
+
+Mo¿emy dodaæ politykê, w której sami okreœlimy regu³ê autoryzacji.
+
+Aby to zrobic, najpierw tworzymy w³asn¹ klasê Requirement, która dziedziczy po klasie IAuthorizationRequirement.
+
+namespace RestaurantAPI.Authorization
+{
+    public class MinimumAgeRequirement: IAuthorizationRequirement
+    {
+        public int MinimumAge { get; }
+        public MinimumAgeRequirement(int minimumAge)
+        {
+            MinimumAge = minimumAge;
+        }
+    }
+}
+
+W tej klasie dodajemy pole, które bêdzie nasz¹ wartoœci¹ do sprawdzenia i wstrzykujemy j¹ przez konstruktor.
+Nastêpnie musimy dodaæ odpowiedni Handler dla tego wymagania. 
+
+
+namespace RestaurantAPI.Authorization
+{
+    public class MinimumAgeRequirementHandler : AuthorizationHandler<MinimumAgeRequirement>
+    {
+        private readonly ILogger<MinimumAgeRequirementHandler> logger;
+
+        public MinimumAgeRequirementHandler(ILogger<MinimumAgeRequirementHandler> logger)
+        {
+            this.logger = logger;
+        }
+        protected override Task HandleRequirementAsync(AuthorizationHandlerContext context, MinimumAgeRequirement requirement)
+        {
+            var dateOfBirth = DateTime.Parse(context.User.FindFirst(c => c.Type == "DateOfBirth").Value);
+
+            var userEmail = context.User.FindFirst(c => c.Type == ClaimTypes.Name).Value;
+
+            logger.LogInformation($"User with {userEmail} with date of birth {dateOfBirth}");
+
+            if (dateOfBirth.AddYears(requirement.MinimumAge) < DateTime.Now)
+            {
+                logger.LogInformation("Authorization succedded");
+                context.Succeed(requirement);
+            }
+            else
+            {
+                logger.LogInformation("Authorization failed");
+            }
+            return Task.CompletedTask;  
+        }
+    }
+}
+
+Ta klasa handlera dziedziczy po klasie AuthorizationHandler, która jako parametr generyczny przyjmuje nasz Requirement.
+W tej klasie musimy zaimplementowaæ metodê HandlerRequirementAsync, poniewa¿ jest ona w interfejsie. 
+W tej metodzie mamy dostêp do contextu, czyli do Usera.
+Je¿eli wartoœæ lat uzytkownika spelnia wymaganie, to mozemy przekazaæ wiadomoœæ o spelnieniu warunku:
+context.Succeed(requirement);
+Dodatkowo wstrzyknieto tutaj Logger przez Dependency Injection, aby zapisywaæ informacje o przeprowadzonej autoryzacji i o jej powodzeniu lub braku powodzenia.
+
+Na koniec w klasie startup w COnfigureServices:
+
+services.AddAuthorization(options =>
+{
+    options.AddPolicy("HasNationality", builder => builder.RequireClaim("Nationality", "Poland", "German"));
+    options.AddPolicy("AtLeast20", builder => builder.AddRequirements(new MinimumAgeRequirement(20)));
+});
+
+services.AddScoped<IAuthorizationHandler, MinimumAgeRequirementHandler>();
+
+Dodajemy nasz¹ now¹ politykê, która zawiera w³asny Requirement. Dodatkowo rejestrujemy logger w kontenerze zale¿noœci. 
+
+
+
 
 ########################################################################################################################################################################################################################################################
 

@@ -32,6 +32,7 @@ namespace RestaurantAPI.Controllers
         }
 
         [HttpDelete("{id}")]
+        [Authorize(Policy = "AtLeast20")]
         public ActionResult Delete([FromRoute] int id)
         {
             restaurantService.Delete(id);
@@ -50,6 +51,7 @@ namespace RestaurantAPI.Controllers
 
         [HttpGet]
         [Authorize(Policy = "HasNationality")]
+        [Authorize(Policy = "AtLeast20")]
         public ActionResult<IEnumerable<RestaurantDto>> GetAll()
         {
             var restaurantsDto = restaurantService.GetAll();
