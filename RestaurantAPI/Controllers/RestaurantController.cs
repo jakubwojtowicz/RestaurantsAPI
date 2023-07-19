@@ -8,6 +8,7 @@ using RestaurantAPI.Services;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Claims;
 
 namespace RestaurantAPI.Controllers
 {
@@ -44,6 +45,7 @@ namespace RestaurantAPI.Controllers
         [Authorize(Roles = "Administrator, Menager")]
         public ActionResult CreateRestaurant([FromBody] CreateRestaurantDto dto)
         {
+
             int id = restaurantService.Create(dto);
 
             return Created($"/api/restaurant/{id}", null);

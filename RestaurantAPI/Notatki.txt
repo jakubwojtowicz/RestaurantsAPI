@@ -958,12 +958,135 @@ services.AddScoped<IAuthorizationHandler, MinimumAgeRequirementHandler>();
 
 Dodajemy nasz¹ now¹ politykê, która zawiera w³asny Requirement. Dodatkowo rejestrujemy logger w kontenerze zale¿noœci. 
 
+########################################################################################################################################################################################################################################################
+
+DOSTEP DO ZASOBU
+
+Chcielibyœmy dodaæ autoryzacje osób, które utworzyly dany zasób, po to aby tylko one mog³y go modyfikowaæ
+Aby to zrobiæ musimy u¿yæ drug¹ implementacjê klasy AuthorizationHandler, która przyjmuje równie¿ zasób jako parametr generyczny.
+U¿ywaj¹c tej klasy mo¿emy dostaæ siê do contextu zasobu, aby sprawdziæ, czy dany u¿ytkownik utworzy³ ten zasób.
+
+Najpierw tworzymy klasê która bêdzie reprezentowaæ wartoœæ do sprawdzenia autoryzacji
+
+namespace RestaurantAPI.Authorization
+{
+    public enum ResourceOperation
+    {
+        Create,
+        Read,
+        Update,
+        Delete
+    }
+
+    public class ResourceOperationRequirement : IAuthorizationRequirement
+    {
+        public ResourceOperation Operation { get;}
+
+        public ResourceOperationRequirement(ResourceOperation operation)
+        {
+            Operation = operation;
+        }
+    }
+}
+
+Nastêpnie tworzymy handler, który bêdzie sprawdza³ czy ten requirement jest spe³niony.
+
+namespace RestaurantAPI.Authorization
+{
+    public class ResourceOperationRequirementHandler : AuthorizationHandler<ResourceOperationRequirement, Restaurant>
+    {
+        protected override Task HandleRequirementAsync(AuthorizationHandlerContext context, ResourceOperationRequirement requirement, Restaurant restaurant)
+        {
+            //every user can read and create content
+            if(requirement.Operation == ResourceOperation.Read ||
+                requirement.Operation == ResourceOperation.Create)
+            {
+                context.Succeed(requirement);
+            }
+            //get user id
+            var userId = context.User.FindFirst(c => c.Type == ClaimTypes.NameIdentifier).Value;
+
+            //check if this user created this restaurant
+            if (restaurant.CreatedByID == int.Parse(userId))
+            {
+                context.Succeed(requirement);
+            }
+            return Task.CompletedTask;
+        }
+    }
+}
+
+Aby sprawdziæ, czy konkretny uzytkownik doda³ dan¹ restauracjê trzeba dodaæ odpowiednie property do encji Restaurant.
+
+public int? CreatedByID { get; set; }
+public virtual User CreatedBy { get; set; }
+
+Po dodaniu tego do encji, trzeba wykonaæ migracje na bazie danych.
+
+W klasie startup rejestrejumy nowy Handler:
+
+services.AddScoped<IAuthorizationHandler, ResourceOperationRequirementHandler>();
+
+Tego handlera tak jak poprzednich nie dodajemy poprzez atrybut. Aby w kontrolerze sprawdziæ autoryzacje u¿ytkownika trzeba
+- wstrzyknaæ do serwisu IAuthorizationService
+- dodac handler na poziomie proby dostepu do zasobu w ten sposob:
+    var authorizationResult = authorizationService.AuthorizeAsync(user, restaurant, new ResourceOperationRequirement(ResourceOperation.Update)).Result;
+
+    if (!authorizationResult.Succeeded)
+    {
+        throw new ForbidException();
+    }
 
 
+Dziêki temu dostêp do zmian zasobu ma u¿ytkownik, który utworzy³ dany zasób.
 
 ########################################################################################################################################################################################################################################################
 
-########################################################################################################################################################################################################################################################
+UserContextService
+
+W tym momencie aby sprawdzic czy dany uzytkownik ma dostep do zasobu, przekazujemy ca³ego uzytkownika z kontrolera do metody np. w akcji Delete w ten sposób:
+
+public ActionResult Delete([FromRoute] int id)
+{
+    restaurantService.Delete(id, User);
+
+Takie rozwi¹zanie nie jest zbyt elastyczne, bo je¿eli mielibyœmy wiele takich serwisów, które potrzebowa³yby context u¿ytkownika, to za ka¿dym razem bêdziemy musieli 
+zbieraæ te infromacje i przekazywaæ w kontrolerach. Lepiej bêdzie skorzystaæ z klasy HttpContextAccesor, dziêki której mo¿emy mieæ dostêp do contextu Http nawet poza kontrolerem.
+
+Najpierw dodajemy klasê UserCOntextService, która bêdzie odpowiada³a za zwrócenie u¿ytkownika oraz jego ID.
+
+    public interface IUserContextService
+    {
+        ClaimsPrincipal User { get; }
+        int? GetUserId {  get; }
+    }
+    public class UserContextService: IUserContextService
+    {
+        private readonly IHttpContextAccessor httpContextAccessor;
+
+        public UserContextService(IHttpContextAccessor httpContextAccessor)
+        {
+            this.httpContextAccessor = httpContextAccessor;
+        }
+
+        public ClaimsPrincipal User => httpContextAccessor.HttpContext?.User;
+        public int? GetUserId => User is null ? null : (int?)int.Parse(User.FindFirst(c => c.Type == ClaimTypes.NameIdentifier).Value);
+    }
+
+Nastêpnie rejestrujemy serwis w ten sposób:             services.AddScoped<IUserContextService, UserContextService>();
+
+Dodajemy równie¿ Accesor w ten sposób:             services.AddHttpContextAccessor();
+
+Teraz mo¿emy w serwisie przekazaæ przez konstruktor nasz serwis:
+
+public RestaurantService(RestaurantDbContext context, IMapper mapper, ILogger<RestaurantService> logger,
+    IAuthorizationService authorizationService, IUserContextService userContextService)
+{
+
+A nastêpnie z niego korzystaæ. Dziêki temu w klasie serwis nie jesteœmy zale¿ni od kontrolera oraz od zapytania http. 
+
+
+
 
 ########################################################################################################################################################################################################################################################
 
