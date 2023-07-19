@@ -1086,7 +1086,152 @@ public RestaurantService(RestaurantDbContext context, IMapper mapper, ILogger<Re
 A nastêpnie z niego korzystaæ. Dziêki temu w klasie serwis nie jesteœmy zale¿ni od kontrolera oraz od zapytania http. 
 
 
+########################################################################################################################################################################################################################################################
+FILTRACJA 
 
+W tym momencie nie filtrujemy w ¿aden sposób wyników zapytañ. 
+Je¿eli mielibyœmy na przyk³ad milion rekordów w bazie danych, zwracanie zawsze wszystkich by³oby nieefektywne.
+Filtrowanie pozwala na znalezienie konkretnych zasobów, natomiast paginacja polega na wyœwietleniu konkretnej iloœci wyników.
+
+Aby dodaæ filtrowanie za pomoc¹ frazy, mo¿emy to zrobiæ w ten sposób:
+W kontrolerze dodajemy parametr FromQuery, który zawiera szukan¹ frazê i przekazujemy ten parametr do metody w serwisie.
+
+[HttpGet]
+public ActionResult<IEnumerable<RestaurantDto>> GetAll([FromQuery] string searchPhrase)
+{
+    var restaurantsDto = restaurantService.GetAll(searchPhrase);
+
+    return Ok(restaurantsDto);
+}
+
+Nastêpnie w serwisie dodajemy where do zapytania:
+
+public IEnumerable<RestaurantDto> GetAll(string searchPhrase)
+{
+    var restaurants = context.Restaurants
+        .Include(r => r.Address)
+        .Include(r=> r.Dishes)
+        .Where(r => searchPhrase == null || (r.Name.ToLower().Contains(searchPhrase.ToLower()) 
+                                            || r.Description.ToLower().Contains(searchPhrase.ToLower())))
+        .ToList();
+
+    var restaurantsDto = mapper.Map<List<RestaurantDto>>(restaurants);
+
+    return restaurantsDto;
+}
+
+Pisz¹c warunek w Where w ten sposób dzia³a to tak, ¿e je¿eli searchPhrase == null to zwracane s¹ wszystkie rezultaty.
+Je¿eli searchPhrase !=null to sprawdzamy czy Nazwa lub opis restauracji zawieraj¹ szukan¹ frazê. 
+
+########################################################################################################################################################################################################################################################
+PAGINACJA
+
+Dodajemy klase RestaurantQuery do modeli, która zawiera input uzytkownika o tym jakie wyniki chce dostac:
+
+public class RestaurantQuery
+{
+    public string SearchPhrase { get; set; }
+    public int PageNumber { get; set; }
+    public int PageSize { get; set; }
+}
+
+Teraz aby wyswietlic na przyklad 5 wynikow z 3 strony, musimy pomin¹æ pierwsze 10 wyników i wzi¹¿ 5 kolejnych.
+
+ilosc rezultatow do pominiecia = pageSize*(pageNumber - 1)
+
+Aby w entity framewor pomin¹æ pierwsz¹ jak¹œ iloœæ rezultatów musimy wywo³aæ metodê skip.
+Kolejn¹ jak¹œ iloœæ elementów mo¿emy wzi¹æ za pomoc¹ metody Take.
+Ca³oœæ wygl¹da nastêpuj¹co:
+
+public IEnumerable<RestaurantDto> GetAll(RestaurantQuery query)
+{
+    var restaurants = context.Restaurants
+        .Include(r => r.Address)
+        .Include(r=> r.Dishes)
+        .Where(r => query.SearchPhrase == null || (r.Name.ToLower().Contains(query.SearchPhrase.ToLower()) 
+                                            || r.Description.ToLower().Contains(query.SearchPhrase.ToLower())))
+        .Skip(query.PageSize*(query.PageNumber-1))
+        .Take(query.PageSize)
+        .ToList();
+
+    var restaurantsDto = mapper.Map<List<RestaurantDto>>(restaurants);
+
+    return restaurantsDto;
+}
+
+Je¿eli mamy wiêcej ni¿ jeden parametr zapytania to ³¹czymy te parametry za pomoc¹ operatora &:
+https://localhost:44328/api/restaurant/?searchPhrase=&pageSize=3&pageNumber=2
+
+Dodatkowo do klienta musimy zwróciæ informacje ile obiektów jest jeszcze do wyœwietlenia, jaki zakres aktualnie przegl¹da i ile jest wszystkich stron przy aktualnej wielkosci strony.
+Aby to zrobiæ dodajemy nowy model z wartoœciami zwracanymi.
+
+public class PageResult<T>
+{
+    public List<T> Items { get; set; }  
+    public int TotalPages { get; set; }
+    public int ItemFrom { get; set; }
+    public int ItemTo { get; set; }
+    public int TotalItemsCount { get; set; }
+
+    public PageResult(List<T> items, int totalCount, int pageSize, int pageNumber)
+    {
+        Items = items;
+        TotalItemsCount = totalCount;
+        ItemFrom = pageSize*(pageNumber-1) + 1;
+        ItemTo = ItemFrom + pageSize - 1;
+        TotalPages = (int)Math.Ceiling(totalCount / (double) pageSize);
+    }
+}
+
+Klasa ta zaweira typ generyczny T, poniewa¿ chcielibyœmy aby by³a ona reu¿ywalna w aplikacji. 
+Aby zaokr¹gliæ wartoœæ w górê u¿ywamy metody Math.Ceiling 
+
+Nastêpnie zmieniamy metode GetAll w serwisie aby zwróciæ odpowiedni wynik z zapytania.
+
+public PageResult<RestaurantDto> GetAll(RestaurantQuery query)
+{
+    var baseQuery = context.Restaurants
+                        .Include(r => r.Address)
+                        .Include(r => r.Dishes)
+                        .Where(r => query.SearchPhrase == null || (r.Name.ToLower().Contains(query.SearchPhrase.ToLower())
+                                                            || r.Description.ToLower().Contains(query.SearchPhrase.ToLower())));
+
+    var restaurants = baseQuery
+        .Skip(query.PageSize*(query.PageNumber-1))
+        .Take(query.PageSize)
+        .ToList();
+
+    var restaurantsDto = mapper.Map<List<RestaurantDto>>(restaurants);
+
+    var result = new PageResult<RestaurantDto>(restaurantsDto, baseQuery.Count(), query.PageSize, query.PageNumber);
+
+    return result;
+}
+
+Na koniec musimy zwalidowaæ nasz model, aby uchronic program przed tym, ¿e u¿ytkownik wprowadzi na przyk³ad ujemn¹ wartoœæ pageNumber, lub zerow¹ wartoœæ pageSize itp. 
+Mo¿emy to zrobiæ uzywajac FluentVaildation.
+
+public class RestaurantQueryValidator: AbstractValidator<RestaurantQuery>
+{
+    private int[] allowedPageSizes = new[] { 5, 10, 15 };  
+    public RestaurantQueryValidator()
+    {
+        RuleFor(r => r.PageNumber).GreaterThanOrEqualTo(1);
+        RuleFor(r => r.PageSize).Custom((value, context) =>
+        {
+            if(!allowedPageSizes.Contains(value))
+            {
+                context.AddFailure("PageSize", $"PageSize must in [{string.Join(",", allowedPageSizes)}]");
+            }
+        });
+    }
+}
+
+services.AddScoped<IValidator<RestaurantQuery>, RestaurantQueryValidator>();
+
+########################################################################################################################################################################################################################################################
+
+########################################################################################################################################################################################################################################################
 
 ########################################################################################################################################################################################################################################################
 

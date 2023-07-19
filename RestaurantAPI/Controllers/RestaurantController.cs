@@ -53,11 +53,11 @@ namespace RestaurantAPI.Controllers
 
         [HttpGet]
         [Authorize(Policy = "Minimum2RestaurantsCreated")]
-        public ActionResult<IEnumerable<RestaurantDto>> GetAll()
+        public ActionResult<IEnumerable<RestaurantDto>> GetAll([FromQuery] RestaurantQuery query)
         {
-            var restaurantsDto = restaurantService.GetAll();
+            var pageResult = restaurantService.GetAll(query);
 
-            return Ok(restaurantsDto);
+            return Ok(pageResult);
         }
 
         [HttpGet("{id}")]
