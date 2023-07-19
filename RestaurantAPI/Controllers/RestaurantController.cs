@@ -52,8 +52,7 @@ namespace RestaurantAPI.Controllers
         }
 
         [HttpGet]
-        [Authorize(Policy = "HasNationality")]
-        [Authorize(Policy = "AtLeast20")]
+        [Authorize(Policy = "Minimum2RestaurantsCreated")]
         public ActionResult<IEnumerable<RestaurantDto>> GetAll()
         {
             var restaurantsDto = restaurantService.GetAll();
