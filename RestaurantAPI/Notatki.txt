@@ -1230,6 +1230,51 @@ public class RestaurantQueryValidator: AbstractValidator<RestaurantQuery>
 services.AddScoped<IValidator<RestaurantQuery>, RestaurantQueryValidator>();
 
 ########################################################################################################################################################################################################################################################
+SORTOWANIE
+
+Chcielibyœmy dodaæ u¿ytkownikowi sortowanie po dowolnej kolumnie i w którymœ kierunku (malej¹co lub rosn¹co)
+Aby to zrobiæ trzeba zmieniæ model zapytania od klietna i dodaæ do niego dwa nowe pola:
+
+public class RestaurantQuery
+{
+    public string SearchPhrase { get; set; }
+    public int PageNumber { get; set; }
+    public int PageSize { get; set; }
+    public string SortBy { get; set; }
+    public SortDirection SortDirection { get; set; }
+}
+
+SortDirection przyjmuje 2 wartoœci Asc oraz Desc.
+Nastêpnie w metodzie GetAll w ServiceRestaurant dodajemy sortowanie w ten sposób:
+//jezeli uzytkownik chce posortowac rezultaty
+if(!string.IsNullOrEmpty(query.SortBy))
+{
+    nowy slownik ktory przyporzadkowuje nazwe kolumny do odpowiedniej metody, która bêdzie uzyta w OrderBy
+    var columnsSelector = new Dictionary<string, Expression<Func<Restaurant, object>>>
+    {
+        { nameof(Restaurant.Name), r=>r.Name},
+        { nameof(Restaurant.Description), r=>r.Description},
+        { nameof(Restaurant.Category), r=>r.Category}
+    };
+    var selectedColumn = columnsSelector[query.SortBy];
+
+    baseQuery = query.SortDirection == SortDirection.Asc 
+        ? baseQuery.OrderBy(selectedColumn) 
+        : baseQuery.OrderByDescending(selectedColumn);
+}
+
+W RestaurantQueryValidator dodajemy now¹ walidacjê, która bêdzie umo¿liwiaæ sprawdzenie czy uzytkownik wproadzi³ poprawne wartoœci
+
+RuleFor(r => r.SortBy)
+    .Must(value => string.IsNullOrEmpty(value) || allowedSortByColumnNames
+    .Contains(value))
+    .WithMessage($"Sort by is optional, or must be in [{string.Join(",", allowedSortByColumnNames)}]");
+
+Kolejnoœc operacji w IQueryable:
+1.Odfiltrowanie (.Where())
+2.Posortowanie (.OrderBy())
+3.Pominiecie (.Skip())
+4.Wziecie rezultatow (.Take())
 
 ########################################################################################################################################################################################################################################################
 
