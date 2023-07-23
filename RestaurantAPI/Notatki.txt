@@ -1277,6 +1277,28 @@ Kolejnoœc operacji w IQueryable:
 4.Wziecie rezultatow (.Take())
 
 ########################################################################################################################################################################################################################################################
+Dodanie polityki CORS
+
+Domyœlnie poprzez politykê CORS dostêp do zasobów naszej bazy jest zablokowany dla klientów z przegl¹darek.
+Aby to zmieniæ mo¿na dodaæ politykê, w której mo¿na zdefiniowaæ jakie adresy hostów chcemy dopuszczaæ do pobierania zasobów API.
+Dodanie polityki CORS jest proste i robi siê to w ten sposób w klasie Startup:
+Adresy hostów mo¿na dodaæ do klasy appsettings.json   
+"AllowedOrigins": "hhtp://localhost:8080",
+
+Startup//ConfigureServices//
+services.AddCors(options =>
+{
+    options.AddPolicy("FrontEndClient", builder =>
+    {
+        builder.AllowAnyMethod()
+        .AllowAnyHeader()
+        .WithOrigins(Configuration["AllowedOrigins"]);
+    });
+});
+
+Startup//Configure//
+app.UseCors("FrontEndClient");
+
 
 ########################################################################################################################################################################################################################################################
 

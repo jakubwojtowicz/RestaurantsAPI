@@ -88,11 +88,20 @@ namespace RestaurantAPI
             services.AddHttpContextAccessor();
             services.AddSwaggerGen();
             services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
+            services.AddCors(options =>
+            {
+                options.AddPolicy("FrontEndClient", builder =>
+                {
+                    builder.AllowAnyMethod()
+                    .AllowAnyHeader()
+                    .WithOrigins(Configuration["AllowedOrigins"]);
+                });
+            });
         }
 
         public void Configure(IApplicationBuilder app, IWebHostEnvironment env, RestaurantSeeder seeder)
         {
-
+            app.UseCors("FrontEndClient");
             seeder.Seed();
 
             if (env.IsDevelopment())
