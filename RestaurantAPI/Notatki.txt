@@ -1301,6 +1301,19 @@ app.UseCors("FrontEndClient");
 
 
 ########################################################################################################################################################################################################################################################
+PLIKI STATYCZNE
+
+Obs³uga plików statycznych pozwala na wysy³anie plikó poprzez api na przyklad pdf
+Do zrobienia tego mo¿na u¿yc paczki od Microsoftu która najpierw nale¿y pobraæ poprzez Nuget: Microsoft.AspNetCore.StaticFiles
+
+Nastêpnie w metodzie configure dodajemy middleaware
+public void Configure(IApplicationBuilder app, IWebHostEnvironment env, RestaurantSeeder seeder)
+{
+    app.UseStaticFiles();
+
+Teraz mo¿emy zwracaæ pliki statyczne z API, które znajduj¹ siê w folderze wwwroot w g³ównym katalogu aplikacji.
+Aby pobraæ plik mo¿na po prostu wpisaæ zapytanie typu get z nazw¹ pliku np. https://localhost:5001/sample-file.txt
+
 
 ########################################################################################################################################################################################################################################################
 
